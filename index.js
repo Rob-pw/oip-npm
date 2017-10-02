@@ -33,7 +33,7 @@ OIP.prototype.signPublisher = function(args, callback){
 
 	// http://api.alexandria.io/#sign-publisher-announcement-message
 	// Publisher Name - Address - UNIX Timestamp
-	var toSign = args.name + "-" + args.address + "-" + Math.floor((new Date).getTime()/1000);
+	var toSign = args.name + "-" + args.address + "-" + args.timestamp;
 	
 	signMessage(args.address, toSign, function(data){
 		callback(data);
@@ -94,14 +94,13 @@ OIP.prototype.announcePublisher = function(args, callback){
 		return;
 	}
 
-
-
 	// http://api.alexandria.io/#sign-publisher-announcement-message
 	// Publisher Name - Address - UNIX Timestamp
-	var toSign = args.name + "-" + args.address + "-" + Math.floor((new Date).getTime()/1000);
+	var toSign = args.name + "-" + args.address + "-" + args.timestamp;
 	
-	signMessage(args.address, toSign, function(signature){
-		callback(signature);
+	signMessage(args.address, toSign, function({ success, message }){
+		if (false === success) callback(message, null);
+		else callback(null, message);
 	});
 }
 
