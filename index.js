@@ -108,55 +108,52 @@ OIP.prototype.announcePublisher = function(args, callback){
 }
 
 // Accepts information in the format OIP-041
-OIP.prototype.publishArtifact = function(oipArtifact, callback){
-	// Check if the callback is being passed in as args
-	if (!oipArtifact || typeof oipArtifact === "function"){
-		callback = oipArtifact;
-		callback(generateResponseMessage(false, 'You must submit information in the OIP-041 format'));
-		return;
-	}
-	// Make sure we don't crash :)
-	if (typeof oipArtifact == "string"){
-		// Test to see if the artifact is valid JSON
-		try {
-			oipArtifact = JSON.parse(oipArtifact);
-		} catch (e) {
-			callback(generateResponseMessage(false, "Unable to parse JSON, please check your format and try again."));
-			return;
+OIP.prototype.publishArtifact = function(oipArtifact){
+	return new Promise((resolve, reject) => {
+		// Check if the callback is being passed in as args
+		if (!oipArtifact || typeof oipArtifact === "function"){
+			return reject(generateResponseMessage(false, 'You must submit information in the OIP-041 format, returns a Promise.'));
 		}
-	}
-
-	// If the artifact verifies correctly it will contain no text, if it fails it will have an error.
-	var verify = this.verifyArtifact(oipArtifact);
-	// Check if there is an error
-	if (verify){
-		callback(verify);
-		return;
-	}
-
-	var prunedArtifact = prune(oipArtifact);
-
-	var timestamp = Math.floor(Date.now() / 1000);
-
-	// http://api.alexandria.io/#sign-publisher-announcement-message
-	// IPFS - Address - UNIX Timestamp
-	var toSign = prunedArtifact["oip-041"].artifact.storage.location + "-" + prunedArtifact["oip-041"].artifact.publisher + "-" + timestamp;
-
-	prunedArtifact["oip-041"].artifact.timestamp = timestamp;
-	
-	var oip = this;
-	// Sign the message
-	oip.signMessage(prunedArtifact["oip-041"].artifact.publisher, toSign, function(res){
-		if (!res.success){
-			callback(res);
-			return;
+		// Make sure we don't crash :)
+		if (typeof oipArtifact == "string"){
+			// Test to see if the artifact is valid JSON
+			try {
+				oipArtifact = JSON.parse(oipArtifact);
+			} catch (e) {
+				return reject(generateResponseMessage(false, "Unable to parse JSON, please check your format and try again."));
+			}
 		}
-		// Attach signature
-		prunedArtifact["oip-041"].signature = res.message;
-		// Above we remove the "oip-041" for ease of use, this adds it back in.
-		oip.sendToBlockChain(prunedArtifact, prunedArtifact["oip-041"].artifact.publisher, function(response){
-			callback(response);
-		})
+
+		// If the artifact verifies correctly it will contain no text, if it fails it will have an error.
+		var verify = this.verifyArtifact(oipArtifact);
+		// Check if there is an error
+		if (verify){
+			return reject(verify);
+		}
+
+		var prunedArtifact = prune(oipArtifact);
+
+		var timestamp = Math.floor(Date.now() / 1000);
+
+		// http://api.alexandria.io/#sign-publisher-announcement-message
+		// IPFS - Address - UNIX Timestamp
+		var toSign = prunedArtifact["oip-041"].artifact.storage.location + "-" + prunedArtifact["oip-041"].artifact.publisher + "-" + timestamp;
+
+		prunedArtifact["oip-041"].artifact.timestamp = timestamp;
+		
+		var oip = this;
+		// Sign the message
+		oip.signMessage(prunedArtifact["oip-041"].artifact.publisher, toSign, function(res){
+			if (!res.success){
+				return reject(res);
+			}
+			// Attach signature
+			prunedArtifact["oip-041"].signature = res.message;
+			// Above we remove the "oip-041" for ease of use, this adds it back in.
+			oip.sendToBlockChain(prunedArtifact, prunedArtifact["oip-041"].artifact.publisher).then(function(response){
+				resolve(response.message);
+			});
+		});
 	});
 }
 
