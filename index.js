@@ -15,28 +15,31 @@ function OIP(args){
 }
 
 // Accepts information in the following format: {"name": "Test Publisher", "address": "FLO Address"}
-OIP.prototype.signPublisher = function(args, callback){
-	// Check if the callback is being passed in as args
-	if (!args || typeof args === "function"){
-		callback = args;
-		callback(generateResponseMessage(false, 'You must submit information in the following format: {"name": "Test Publisher", "address": "FLO Address"}'));
-		return;
-	}
+OIP.prototype.signPublisher = function(args){
+	return new Promise((resolve, reject) => {
+		// Check if the callback is being passed in as args
+		if (!args || typeof args === "function"){
+			callback = args;
+			callback(generateResponseMessage(false, 'You must submit information in the following format: {"name": "Test Publisher", "address": "FLO Address"}'));
+			return;
+		}
 
-	if (!args.name){
-		callback(generateResponseMessage(false, 'You must include the publisher address and the publisher name as arguments. {"name": "Test Publisher", "address": "FLO Address"}'))
-	}
+		if (!args.name){
+			callback(generateResponseMessage(false, 'You must include the publisher address and the publisher name as arguments. {"name": "Test Publisher", "address": "FLO Address"}'))
+		}
 
-	if (!args.address){
-		callback(generateResponseMessage(false, 'You must include the publisher address and the publisher name as arguments. {"name": "Test Publisher", "address": "FLO Address"}'))
-	}
+		if (!args.address){
+			callback(generateResponseMessage(false, 'You must include the publisher address and the publisher name as arguments. {"name": "Test Publisher", "address": "FLO Address"}'))
+		}
 
-	// http://api.alexandria.io/#sign-publisher-announcement-message
-	// Publisher Name - Address - UNIX Timestamp
-	var toSign = args.name + "-" + args.address + "-" + args.timestamp;
-	
-	signMessage(args.address, toSign, function(data){
-		callback(data);
+		// http://api.alexandria.io/#sign-publisher-announcement-message
+		// Publisher Name - Address - UNIX Timestamp
+		var toSign = args.name + "-" + args.address + "-" + args.timestamp;
+		
+		this.signMessage(args.address, toSign, function(data){
+			if (data.success) resolve(data.message);
+			else reject(data.message);
+		});
 	});
 }
 
@@ -599,42 +602,40 @@ OIP.prototype.chopString = function(input) {
 	return chunks;
 };
 
-OIP.prototype.sendToBlockChain = function(txComment, address, callback){
-	// Make sure that it is a string and not JSON object.
-	if (typeof txComment != "string"){
-		// We are a JSON object, test if we accidently have a status message instead of just oip
-		if (txComment.success){
-			txComment = txComment.message;
-		}
-		// If JSON object then convert to string.
-		txComment = UTF8SafeJsonEncode(txComment);
-	} else {
-		// It is a string, convert to JSON, strip message out, then convert back to a string
-		txComment = JSON.parse(txComment);
-
-		if (txComment.success){
-			txComment = txComment.message;
-		}
-		// If JSON object then convert to string.
-		txComment = UTF8SafeJsonEncode(txComment);
-	}
-	// Check comment length.
-	if (txComment.length > (CHOP_MAX_LEN * 10)) {
-		callback(generateResponseMessage(false, "txComment is too large to fit within 10 multipart transactions. Try making it smaller!"));
-	}
-	else if (txComment.length > TXCOMMENT_MAX_LEN) {
-		this.multiPart(txComment, address, callback);
-	}
-	else {
-		this.client.sendToAddress(address, SEND_AMOUNT, "", "", txComment, function(err, txid) {
-			if (err){
-				callback(generateResponseMessage(false, "Unable to send funds to address: " + err))
-				console.log(err);
-				return;
+OIP.prototype.sendToBlockChain = function(txComment, address){
+	return new Promise((resolve, reject) => {
+		// Make sure that it is a string and not JSON object.
+		if (typeof txComment != "string"){
+			// We are a JSON object, test if we accidently have a status message instead of just oip
+			if (txComment.success){
+				txComment = txComment.message;
 			}
-			callback(generateResponseMessage(true, [txid]));
-		});
-	}
+			// If JSON object then convert to string.
+			txComment = UTF8SafeJsonEncode(txComment);
+		} else {
+			// It is a string, convert to JSON, strip message out, then convert back to a string
+			txComment = JSON.parse(txComment);
+
+			if (txComment.success){
+				txComment = txComment.message;
+			}
+			// If JSON object then convert to string.
+			txComment = UTF8SafeJsonEncode(txComment);
+		}
+		// Check comment length.
+		if (txComment.length > (CHOP_MAX_LEN * 10)) {
+			callback(generateResponseMessage(false, "txComment is too large to fit within 10 multipart transactions. Try making it smaller!"));
+		}
+		else if (txComment.length > TXCOMMENT_MAX_LEN) {
+			this.multiPart(txComment, address, callback);
+		}
+		else {
+			this.client.sendToAddress(address, SEND_AMOUNT, "", "", txComment, function(err, txid) {
+				if (err) reject(generateResponseMessage(false, "Unable to send funds to address: " + err));
+				else resolve(generateResponseMessage(true, [txid]));
+			});
+		}
+	});
 }
 
 OIP.prototype.generateEditDiff = function(originalArtifact, updatedArtifact, origTXID){
