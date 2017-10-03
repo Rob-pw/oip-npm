@@ -621,10 +621,10 @@ OIP.prototype.sendToBlockChain = function(txComment, address){
 		}
 		// Check comment length.
 		if (txComment.length > (CHOP_MAX_LEN * 10)) {
-			callback(generateResponseMessage(false, "txComment is too large to fit within 10 multipart transactions. Try making it smaller!"));
+			return reject(generateResponseMessage(false, "txComment is too large to fit within 10 multipart transactions. Try making it smaller!"));
 		}
 		else if (txComment.length > TXCOMMENT_MAX_LEN) {
-			this.multiPart(txComment, address, callback);
+			this.multiPart(txComment, address, resolve);
 		}
 		else {
 			this.client.sendToAddress(address, SEND_AMOUNT, "", "", txComment, function(err, txid) {
